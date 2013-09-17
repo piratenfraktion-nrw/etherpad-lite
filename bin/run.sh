@@ -33,4 +33,4 @@ bin/installDeps.sh $* || exit 1
 
 #Move to the node folder and start
 echo "start..."
-node node_modules/ep_etherpad-lite/node/server.js $*
+node --max_stack_trace_source_length=3000 --stack-size=3936 node_modules/ep_etherpad-lite/node/server.js $*
