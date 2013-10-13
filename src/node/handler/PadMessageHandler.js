@@ -238,10 +238,10 @@ exports.handleMessage = function(client, message)
           callback();
         }else{
           var auth = sessioninfos[client.id].auth;
-          securityManager.checkAccess(auth.padID, auth.sessionID, auth.token, auth.password, function(err, statusObject)
+          var chaeckAccessCallback = function(err, statusObject)
           {
             if(ERR(err, callback)) return;
- 
+
             //access was granted
             if(statusObject.accessStatus == "grant")
             {
@@ -252,7 +252,17 @@ exports.handleMessage = function(client, message)
             {
               client.json.send({accessStatus: statusObject.accessStatus})
             }
-          });
+          };
+          //check if pad is requested via readOnly
+          if (message.padId.indexOf("r.") === 0) {
+            //Pad is readOnly, first get the real Pad ID
+            readOnlyManager.getPadId(message.padId, function(err, value) {
+              ERR(err);
+              securityManager.checkAccess(value, auth.sessionID, auth.token, auth.password, chaeckAccessCallback);
+            });
+          } else {
+            securityManager.checkAccess(auth.padID, auth.sessionID, auth.token, auth.password, chaeckAccessCallback);
+          }
         }
       },
       finalHandler

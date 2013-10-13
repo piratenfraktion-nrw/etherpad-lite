@@ -23,6 +23,7 @@ var ERR = require("async-stacktrace");
 var log4js = require('log4js');
 var messageLogger = log4js.getLogger("message");
 var securityManager = require("../db/SecurityManager");
+var readOnlyManager = require("../db/ReadOnlyManager");
 
 /**
  * Saves all components
@@ -80,23 +81,31 @@ exports.setSocketIO = function(_socket) {
         handleMessage(client, message);
       } else { //try to authorize the client
         if(message.padId !== undefined && message.sessionID !== undefined && message.token !== undefined && message.password !== undefined) {
-          //this message has everything to try an authorization
-          securityManager.checkAccess (message.padId, message.sessionID, message.token, message.password,
-            function(err, statusObject) {
-              ERR(err);
+          var chaeckAccessCallback = function(err, statusObject) {
+            ERR(err);
 
-              //access was granted, mark the client as authorized and handle the message
-              if(statusObject.accessStatus == "grant") {
-                clientAuthorized = true;
-                handleMessage(client, message);
-              }
-              //no access, send the client a message that tell him why
-              else {
-                messageLogger.warn("Authentication try failed:" + stringifyWithoutPassword(message));
-                client.json.send({accessStatus: statusObject.accessStatus});
-              }
+            //access was granted, mark the client as authorized and handle the message
+            if(statusObject.accessStatus == "grant") {
+              clientAuthorized = true;
+              handleMessage(client, message);
             }
-          );
+            //no access, send the client a message that tell him why
+            else {
+              messageLogger.warn("Authentication try failed:" + stringifyWithoutPassword(message));
+              client.json.send({accessStatus: statusObject.accessStatus});
+            }
+          };
+          //check if pad is requested via readOnly
+          if (message.padId.indexOf("r.") === 0) {
+            //Pad is readOnly, first get the real Pad ID
+            readOnlyManager.getPadId(message.padId, function(err, value) {
+              ERR(err);
+              securityManager.checkAccess (value, message.sessionID, message.token, message.password, chaeckAccessCallback);
+            });
+          } else {
+            //this message has everything to try an authorization
+            securityManager.checkAccess (message.padId, message.sessionID, message.token, message.password, chaeckAccessCallback);
+          }
         } else { //drop message
           messageLogger.warn("Dropped message cause of bad permissions:" + stringifyWithoutPassword(message));
         }
